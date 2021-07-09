@@ -143,28 +143,6 @@ def main():
                 await message.channel.send(error_message_did_something_wrong)
 
 
-        elif message.content.lower().startswith("!csv read"):
-            with open ('information.txt', 'r') as csv_file:
-                line_reader = csv.reader(csv_file, delimiter=',')
-                line_count = 0
-                for row in csv_file:
-                    if line_count == 0:
-                        line_count += 1
-                    else:
-                        print(row[0])
-
-        elif message.content.lower().startswith("!csv write"):
-            reader = csv.reader(open("information.txt"))
-            lines = list(reader)
-            update_val = lines[1][0]
-            if int(update_val) == 0:
-                lines[1][0] = 1
-            else:
-                lines[1][0] = 0
-            writer = csv.writer(open("information.txt", "w"))
-            writer.writerows(lines)
-
-
 
         elif message.content.lower().startswith("!"):
             try:
