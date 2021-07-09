@@ -2,23 +2,27 @@
 
 import tweepy
 import pprint
-import datetime
+from datetime import datetime, date
 import pytz
 from random import randrange
 import pymongo
 from pymongo import MongoClient
 from statistics import stdev
+import secret_info
 
-CONSUMER_KEY = "e2Hqw5TgDc8EUsA0RmP8XBJMj"
-CONSUMER_SECRET_KEY = "5NxskZP7t46UfI6Gwi5hdrIbJRtX0NDmCEWtT1evAzFuoC3PNj"
+CONSUMER_KEY = secret_info.CONSUMER_KEY
+CONSUMER_SECRET_KEY = secret_info.CONSUMER_SECRET_KEY
 
-ACCESS_TOKEN = "1345949283745411072-9vmNSqlxRSIPJ61qNVZv6Dko1vLNql"
-ACCESS_TOKEN_SECRET = "KD6cbo7xColK3pps0wV4llYuex3BK8Fa7u1tqyTduxchr"
+ACCESS_TOKEN = secret_info.ACCESS_TOKEN
+ACCESS_TOKEN_SECRET = secret_info.ACCESS_TOKEN_SECRET 
 
-SEARS_TWITTER_USERNAME = "searysears"
-SEARS_DISCORD_USER_ID = "<@610235781608374272>"
+SEARS_TWITTER_USERNAME = secret_info.SEARS_TWITTER_USERNAME
+SEARS_DISCORD_USER_ID = secret_info.SEARS_DISCORD_USER_ID
 
-CONNECTION_URL = "mongodb+srv://patrikgerard:faPqJHzR8tARuS@cluster0.qv7sp.mongodb.net/test"
+CONNECTION_URL = secret_info.CONNECTION_URL
+
+DOG_SOURCE = "https://www.criminallegalnews.org/news/2018/jun/16/doj-police-shooting-family-dogs-has-become-epidemic/"
+
 
 # Mocks message
 def mock(message):
@@ -84,13 +88,14 @@ def create_user(user_to_create_id, creator_id=None):
      "tier": "B"
     }
     collection.insert_one(post)
+    set_update_needed()
     # add point to tier list date_checker
     # TODO: CALC TIER LIST AND TAKE POINT FROM DATE_CHECKER
     return f"<@{user_to_create_id}> added to cousin rankings."
 
 # Upvotes a user
 def upvote_user(upvoted_id, upvoter_id=None):
-    if downvoted_id == None:
+    if upvoted_id == None:
         return f"Who do you want me to upvote?"
     if upvoted_id == upvoter_id:
         return f"Go fuck yourself <@{upvoter_id}>."
@@ -106,17 +111,16 @@ def upvote_user(upvoted_id, upvoter_id=None):
             return f"<@{upvoted_id}> was created and upvoted."
         
         # Add a point and update the database
-        query = {"_id": upvoted_id}
-        user = collection.find(query)
-        for result in user:
-            points = result["points"]
+        points = collection.find_one({'_id':upvoted_id})['points']
         points += 1
         # add point to tier list date_checker
+        set_update_needed()
         collection.update_one({"_id":upvoted_id}, {"$set": {"points": points}}) 
 
         # TODO: CALC TIER LIST AND TAKE POINT FROM DATE_CHECKER
 
         return f"<@{upvoted_id}> was upvoted."
+
 
 # Downvotes a User
 def downvote_user(downvoted_id, downvoter_id=None):
@@ -137,12 +141,10 @@ def downvote_user(downvoted_id, downvoter_id=None):
             return f"<@{downvoted_id}> was created and downvoted."
         
         # Add a point and update the database
-        query = {"_id": downvoted_id}
-        user = collection.find(query)
-        for result in user:
-            points = result["points"]
+        points = collection.find_one({'_id':downvoted_id})['points']
         points -= 1
         # add point to tier list date_checker
+        set_update_needed()
         collection.update_one({"_id":downvoted_id}, {"$set": {"points": points}}) 
 
         # TODO: CALC TIER LIST AND TAKE POINT FROM DATE_CHECKER
@@ -150,9 +152,7 @@ def downvote_user(downvoted_id, downvoter_id=None):
         return f"<@{downvoted_id}> was downvoted."
 
 def calc_tier_list():
-    # Get total score
-    # Get average score
-    # Get std dev
+
     cluster = MongoClient(CONNECTION_URL)
     db = cluster["cousins"]
     cousins_collection = db["cousins_users"]
@@ -170,13 +170,24 @@ def calc_tier_list():
     std_dev_points = stdev(stdev_collector)
 
     map_to_tier_list(total_points, average_points, std_dev_points)
+    info_collection = db["update_info"]
+    info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 0}})
 
-    # Add each id to tier depending on their score
-    # Add that tier to the id's "tier" attribute
+
+
 
 
 def print_tier_list():
     # Loop through tier list
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection_tier_list = db["tier_list"]
+
+    for tier in collection_tier_list.find():
+        yield f"**{tier['_id']} Tier:**"
+        for member in tier['members']:
+            yield f" \t<@{member}> "
+    pass
 
 
 def tier_list_is_up_to_date():
@@ -186,20 +197,23 @@ def tier_list_is_up_to_date():
 
     query = {"_id": "update_info"}
     info = update_needed_collection.find_one(query)
-    print(info["update_needed"] == 0)
     return info["update_needed"] == 0
 
-
+def set_update_needed():
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    info_collection = db["update_info"]
+    info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 1}})
 
 
 def map_to_tier_list(total_points, average_points, std_dev_points):
     tier_mapping =    { 
-        'S' : round(average_points + (std_dev_points * 2)), # ge
-        'A': round(average_points + (std_dev_points)), # ge
+        'S' : round(average_points + (std_dev_points)), # ge
+        'A': round(average_points + (std_dev_points*0.5)), # ge
         'B': round(average_points), # ge
-        'C': round(average_points - (std_dev_points)), # le 
-        'D': round(average_points - (std_dev_points * 2)), # le
-        'Piss Dungeon': round(average_points - (std_dev_points * 3)) # le
+        'C': round(average_points - (std_dev_points*0.75)), # le 
+        'D': round(average_points - (std_dev_points*.95)), # le
+        'Piss Dungeon': round(average_points - (std_dev_points)) # le
     }
 
     cluster = MongoClient(CONNECTION_URL)
@@ -218,15 +232,38 @@ def map_to_tier_list(total_points, average_points, std_dev_points):
             tier = "A"
         elif member["points"] >= tier_mapping['C']:
             tier = "B"
-        elif member["points"] <= tier_mapping['C']:
+        elif member["points"] >= tier_mapping['D']:
             tier = "C"
-        elif member["points"] <= tier_mapping['D']:
+        elif member["points"] >= tier_mapping['Piss Dungeon']:
             tier = "D"
         else:
             tier = "Piss Dungeon"
         collection_tier_list.update_one({"_id":tier}, {"$push":{"members": member["_id"]}})
         collection_update_info.update_one({"_id": "update_info"}, {"$set": {"update_needed": 0}})
         collection_members.update_one({"_id":member["_id"]}, {"$set": {"tier": tier}})
+
+
+def dog_source():
+    return f"{DOG_SOURCE}"
+
+def dogs_killed():
+    current_year = datetime(datetime.today().year, 1, 1)
+    # current_year = date(datetime.today().year, 1, 1)
+    current_date = datetime.today()
+    
+    #.strftime("%Y-%m-%d %I")
+    
+    # prev_date = datetime.strptime("2021-07-08 4","%Y-%m-%d %H")
+    # delta_last_inquiry = current_date - prev_date
+    # seconds_since_last_incquiry = delta_last_inquiry.seconds
+    # dogs_killed_since_last_inquiry = round(seconds_since_last_incquiry/3600)
+
+    seconds_since_year_start = (current_date - current_year).total_seconds() 
+    dogs_killed_since_year_start = round(seconds_since_year_start/3600)
+
+
+    return f"There have been approximately {dogs_killed_since_year_start} dogs killed by cops this year. Ruff world!\n\nType \'!dogs_source\' for source."
+
 
         
 
