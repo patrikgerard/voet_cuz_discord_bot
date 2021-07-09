@@ -7,12 +7,13 @@ import pymongo
 from pymongo import MongoClient
 import bot_functions
 import secret_info
-
+import csv
 
 TOKEN = secret_info.TOKEN
 CHANNEL_ID = secret_info.CHANNEL_ID
 COMMANDS = commands = f"My commands: \n **!mock [message]**: Mock a message \n **!sears**: See a tweet by {bot_functions.SEARS_DISCORD_USER_ID} \n **!dogs**: Get a cool dog fact! \n **!create @user**: Add someone (using their slack handle) to the cousin tier list \n **!upvote @user**: Add to someone's tier list points \n **!downvote @user**: Subtract from someone's tier list points \n **!tiers**: View the cousin tier list \n **!carl**: Get a certain carl quote \n **!stop**: Tell me to stop"
 error_message_bad_command = "Command doesn't fit. You must acquit!"
+error_message_did_something_wrong = "Oh my God, Nicole is killed? Oh my God, she is dead? The errors in your command killed her?"
 
 def main():
     client = discord.Client()
@@ -42,11 +43,15 @@ def main():
                     mocked_message = bot_functions.mock(stripped_message)
                     await message.channel.send(mocked_message)
             except:
-                await message.channel.send("You did something wrong. Try again.")
+                await message.channel.send(error_message_did_something_wrong)
         
         # Sears tweet
         elif message.content.lower().startswith("!sears"):
-            await message.channel.send(bot_functions.grab_sears_tweet())
+            try:
+                await message.channel.send(bot_functions.grab_sears_tweet())
+            except:
+                await message.channel.send(error_message_did_something_wrong)
+        
 
         # Upvote a user
         elif message.content.lower().startswith("!upvote"):
@@ -59,7 +64,7 @@ def main():
                 upvote_message = bot_functions.upvote_user(upvoted_id, upvoter_id)
                 await message.channel.send(upvote_message)
             except:
-                await message.channel.send(error_message)
+                await message.channel.send(error_message_did_something_wrong)
 
 
         # Downvote a user
@@ -71,7 +76,7 @@ def main():
                 downvote_message = bot_functions.downvote_user(downvoted_id, downvoter_id)
                 await message.channel.send(downvote_message)
             except:
-                await message.channel.send(error_message)
+                await message.channel.send(error_message_did_something_wrong)
 
         # Create member
         elif message.content.lower().startswith("!create"):
@@ -87,38 +92,85 @@ def main():
 
         # Tier list
         elif message.content.lower().startswith("!tiers"):
-            global CURRENT_TIER
-            if not bot_functions.tier_list_is_up_to_date():
-                bot_functions.calc_tier_list()
-                await message.channel.send("Calculating Tier list...")
-            tier_list = bot_functions.print_tier_list()
-            tier_list = ''.join((line + '\n') for line in tier_list)
-            await message.channel.send(tier_list)
+            try:
+                if not bot_functions.tier_list_is_up_to_date():
+                    bot_functions.calc_tier_list()
+                    await message.channel.send("Calculating Tier list...")
+                tier_list = bot_functions.print_tier_list()
+                tier_list = ''.join((line + '\n') for line in tier_list)
+                await message.channel.send(tier_list)
+            except:
+                await message.channel.send(error_message_did_something_wrong)
 
         # Dogs killed by cops
         elif message.content.lower().startswith("!dogs_source") or message.content.lower().startswith("!dog_source"):
-            await message.channel.send(bot_functions.dog_source())
+            try:
+                await message.channel.send(bot_functions.dog_source())
+            except:
+                await message.channel.send(error_message_did_something_wrong)
         elif message.content.lower().startswith("!dogs"):
-            await message.channel.send(bot_functions.dogs_killed())
+            try:
+                await message.channel.send(bot_functions.dogs_killed())
+            except:
+                await message.channel.send(error_message_did_something_wrong)
 
         # Carl
         elif message.content.lower().startswith("!carl"):
-            carl_quote = f"\"Hey Brian I'm done gassing up and heading out to the place at the other end of passbook just crossed Macgomery Road from Holbrook and just keep on going straight towards a house hot like you're going through Montgomery but on hospital road see\""
-            await message.channel.send(carl_quote)
-
+            try:
+                carl_quote = f"\"Hey Brian I'm done gassing up and heading out to the place at the other end of passbook just crossed Macgomery Road from Holbrook and just keep on going straight towards a house hot like you're going through Montgomery but on hospital road see\""
+                await message.channel.send(carl_quote)
+            except:
+                await message.channel.send(error_message_did_something_wrong)
+        
         # Stop
         elif message.content.lower().startswith("!stop"):
-            video_link = "https://youtu.be/P4PgrY33-UA?t=42"
-            await message.channel.send(video_link)
+            try:
+                video_link = "https://youtu.be/P4PgrY33-UA?t=42"
+                await message.channel.send(video_link)
+            except:
+                await message.channel.send(error_message_did_something_wrong)
 
         # Help messages
         elif message.content.lower().startswith("!commands"):
-            await message.channel.send(COMMANDS)
+            try:
+                await message.channel.send(COMMANDS)
+            except:
+                await message.channel.send(error_message_did_something_wrong)
         elif message.content.lower().startswith("!help"):
-            await message.channel.send("𝐆𝐨 𝐟𝐮𝐜𝐤 𝐲𝐨𝐮𝐫𝐬𝐞𝐥𝐟. \n\nᵗʳʸ \'!ᶜᵒᵐᵐᵃⁿᵈˢ\'")
+            try:
+                await message.channel.send("𝐆𝐨 𝐟𝐮𝐜𝐤 𝐲𝐨𝐮𝐫𝐬𝐞𝐥𝐟. \n\nᵗʳʸ \'!ᶜᵒᵐᵐᵃⁿᵈˢ\'")
+            except:
+                await message.channel.send(error_message_did_something_wrong)
+
+
+        elif message.content.lower().startswith("!csv read"):
+            with open ('information.txt', 'r') as csv_file:
+                line_reader = csv.reader(csv_file, delimiter=',')
+                line_count = 0
+                for row in csv_file:
+                    if line_count == 0:
+                        line_count += 1
+                    else:
+                        print(row[0])
+
+        elif message.content.lower().startswith("!csv write"):
+            reader = csv.reader(open("information.txt"))
+            lines = list(reader)
+            update_val = lines[1][0]
+            if int(update_val) == 0:
+                lines[1][0] = 1
+            else:
+                lines[1][0] = 0
+            writer = csv.writer(open("information.txt", "w"))
+            writer.writerows(lines)
+
+
 
         elif message.content.lower().startswith("!"):
-            await message.channel.send(error_message_bad_command)
+            try:
+                await message.channel.send(error_message_bad_command)
+            except:
+                await message.channel.send(error_message_did_something_wrong)
         
 
 

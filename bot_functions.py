@@ -9,6 +9,7 @@ import pymongo
 from pymongo import MongoClient
 from statistics import stdev
 import secret_info
+import csv
 
 CONSUMER_KEY = secret_info.CONSUMER_KEY
 CONSUMER_SECRET_KEY = secret_info.CONSUMER_SECRET_KEY
@@ -170,8 +171,9 @@ def calc_tier_list():
     std_dev_points = stdev(stdev_collector)
 
     map_to_tier_list(total_points, average_points, std_dev_points)
-    info_collection = db["update_info"]
-    info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 0}})
+    set_tier_up_to_date()
+    # info_collection = db["update_info"]
+    # info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 0}})
 
 
 
@@ -189,21 +191,46 @@ def print_tier_list():
             yield f" \t<@{member}> "
     pass
 
+def set_tier_up_to_date():
+    reader = csv.reader(open("information.txt"))
+    lines = list(reader)
+    lines[1][0] = 0
+
+    writer = csv.writer(open("information.txt", "w"))
+    writer.writerows(lines)
 
 def tier_list_is_up_to_date():
-    cluster = MongoClient(CONNECTION_URL)
-    db = cluster["cousins"]
-    update_needed_collection = db["update_info"]
+    with open ('information.txt', 'r') as csv_file:
+        line_reader = csv.reader(csv_file, delimiter=',')
+        line_count = 0
+        for row in csv_file:
+            if line_count == 0:
+                line_count += 1
+            else:
+                return int(row[0]) == 0
+    #             print(row[0])
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # update_needed_collection = db["update_info"]
 
-    query = {"_id": "update_info"}
-    info = update_needed_collection.find_one(query)
-    return info["update_needed"] == 0
+    # query = {"_id": "update_info"}
+    # info = update_needed_collection.find_one(query)
+    # return info["update_needed"] == 0
+
+# def set_update_needed():
+#     cluster = MongoClient(CONNECTION_URL)
+#     db = cluster["cousins"]
+#     info_collection = db["update_info"]
+#     info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 1}})
+
 
 def set_update_needed():
-    cluster = MongoClient(CONNECTION_URL)
-    db = cluster["cousins"]
-    info_collection = db["update_info"]
-    info_collection.update_one({"_id":"update_info"}, {"$set": {"update_needed": 1}})
+    reader = csv.reader(open("information.txt"))
+    lines = list(reader)
+    lines[1][0] = 1
+
+    writer = csv.writer(open("information.txt", "w"))
+    writer.writerows(lines)
 
 
 def map_to_tier_list(total_points, average_points, std_dev_points):
