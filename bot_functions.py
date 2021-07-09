@@ -24,6 +24,7 @@ CONNECTION_URL = secret_info.CONNECTION_URL
 
 DOG_SOURCE = "https://www.criminallegalnews.org/news/2018/jun/16/doj-police-shooting-family-dogs-has-become-epidemic/"
 
+INFORMATION_FILE_NAME ="information.txt"
 
 # Mocks message
 def mock(message):
@@ -148,8 +149,6 @@ def downvote_user(downvoted_id, downvoter_id=None):
         set_update_needed()
         collection.update_one({"_id":downvoted_id}, {"$set": {"points": points}}) 
 
-        # TODO: CALC TIER LIST AND TAKE POINT FROM DATE_CHECKER
-
         return f"<@{downvoted_id}> was downvoted."
 
 def calc_tier_list():
@@ -192,11 +191,11 @@ def print_tier_list():
     pass
 
 def set_tier_up_to_date():
-    reader = csv.reader(open("information.txt"))
+    reader = csv.reader(open(INFORMATION_FILE_NAME))
     lines = list(reader)
     lines[1][0] = 0
 
-    writer = csv.writer(open("information.txt", "w"))
+    writer = csv.writer(open(INFORMATION_FILE_NAME, "w"))
     writer.writerows(lines)
 
 def tier_list_is_up_to_date():
@@ -225,11 +224,11 @@ def tier_list_is_up_to_date():
 
 
 def set_update_needed():
-    reader = csv.reader(open("information.txt"))
+    reader = csv.reader(open(INFORMATION_FILE_NAME))
     lines = list(reader)
     lines[1][0] = 1
 
-    writer = csv.writer(open("information.txt", "w"))
+    writer = csv.writer(open(INFORMATION_FILE_NAME, "w"))
     writer.writerows(lines)
 
 
@@ -247,7 +246,7 @@ def map_to_tier_list(total_points, average_points, std_dev_points):
     db = cluster["cousins"]
     collection_members = db["cousins_users"]
     collection_tier_list = db["tier_list"]
-    collection_update_info = db["update_info"]
+    # collection_update_info = db["update_info"]
     for tier in tier_mapping:
         collection_tier_list.update_one({"_id":tier}, {"$set":{"members": []}})
 
@@ -266,7 +265,7 @@ def map_to_tier_list(total_points, average_points, std_dev_points):
         else:
             tier = "Piss Dungeon"
         collection_tier_list.update_one({"_id":tier}, {"$push":{"members": member["_id"]}})
-        collection_update_info.update_one({"_id": "update_info"}, {"$set": {"update_needed": 0}})
+        # collection_update_info.update_one({"_id": "update_info"}, {"$set": {"update_needed": 0}})
         collection_members.update_one({"_id":member["_id"]}, {"$set": {"tier": tier}})
 
 
