@@ -33,6 +33,7 @@ vote_refresh_time = 40
 republican_voting_url = "https://rb.gy/wih8jw"
 help_doc = "help.txt"
 intro_doc = "introduction.txt"
+bee_facts_txt = "bee_facts.txt"
 
 # Mocks message
 def mock(message):
@@ -396,3 +397,13 @@ def check_mark_mode():
                 line_count += 1
             else:
                 return int(row[0]) == 1
+
+
+def bee_facts():
+    bee_facts = []
+    lines = open(bee_facts_txt, encoding='utf-8').read().splitlines()
+    # ojs_day.append([line for line in lines])
+    for line in lines:
+        bee_facts.append(line)
+    return random.choice(bee_facts)
+
