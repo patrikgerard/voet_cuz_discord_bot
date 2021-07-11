@@ -17,3 +17,5 @@
 **!guilty**: Ask if I'm guilty 
 **!glove**: Ask me about my glove
 **!stop**: Tell me to stop
+**!bees**: Bee fact!
+**!joke**: Tell a joke
