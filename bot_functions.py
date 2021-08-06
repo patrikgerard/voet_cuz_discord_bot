@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import asyncio
 import tweepy
 import pprint
 from datetime import datetime, date
@@ -12,6 +13,9 @@ import secret_info
 import csv
 import random
 import time
+import discord
+import math
+
 
 CONSUMER_KEY = secret_info.CONSUMER_KEY
 CONSUMER_SECRET_KEY = secret_info.CONSUMER_SECRET_KEY
@@ -29,11 +33,52 @@ DOG_SOURCE = "https://www.criminallegalnews.org/news/2018/jun/16/doj-police-shoo
 INFORMATION_FILE_NAME ="information.txt"
 ANNOY_MARK_FILE_NAME = "annoy_mark_mode.txt"
 epoch = datetime(1970,1,1)
-vote_refresh_time = 40
+vote_refresh_time = 180 # 3 minutes
 republican_voting_url = "https://rb.gy/wih8jw"
 help_doc = "help.txt"
+update_doc = "update_notes.txt"
 intro_doc = "introduction.txt"
 bee_facts_txt = "bee_facts.txt"
+allowed_horny_permit_time = secret_info.allowed_horny_permit_time # one hour
+horny_jail_sentence_time = secret_info.horny_jail_sentence_time # one hour
+horny_choices = secret_info.horny_choices
+# horny_jail_list = "horny_jail_list.txt"
+horny_jail_messages = secret_info.horny_jail_messages
+bonk_image = secret_info.bonk_image
+
+horny_jail_role = secret_info.horny_jail_role
+
+horny_check_cooldown = secret_info.horny_check_cooldown
+permit_request_cooldown = secret_info.permit_request_cooldown
+permit_request_chance = secret_info.permit_request_chance
+horny_strike_cooldown = secret_info.horny_strike_cooldown
+
+mom_statuses = secret_info.mom_statuses
+
+r_join_file = secret_info.r_join_file
+mp3_files = secret_info.mp3_files
+
+async def free_from_horny_jail(channel, horndog, role, time_to_release):
+    await asyncio.sleep(time_to_release)
+    await horndog.remove_roles(role)
+    await channel.send(f"Oh god hide the children <@{horndog.id}> is out of horny jail.")
+
+async def remove_horny_strike_async(horny_offender, strikes_to_take, collection, cooldown_time):
+    await asyncio.sleep(cooldown_time)
+    take_horny_strikes(horny_offender, strikes_to_take, collection)
+
+async def random_join(vchannel, chance, cooldown):
+    while True:
+        if len(vchannel.members) > 0 and check_rjoin_mode() is True:
+            print("Attempting to join vc")
+            if random.randint(0, 100) < chance:
+                vc = await vchannel.connect()
+                vc.play(discord.PCMVolumeTransformer(discord.FFmpegPCMAudio(random.choice(mp3_files)), volume=1.0))
+                while vc.is_playing():
+                    await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
+                await vc.disconnect()
+        await asyncio.sleep(cooldown)
 
 # Mocks message
 def mock(message):
@@ -81,7 +126,7 @@ def grab_sears_tweet():
         text = api.get_status(id, tweet_mode = "extended")
         return f"{text.full_text}"
 
-def create_user(user_to_create_id, creator_id=None):
+def create_user(user_to_create_id, creator_id=None, name=""):
 
     cluster = MongoClient(CONNECTION_URL)
     db = cluster["cousins"]
@@ -98,7 +143,17 @@ def create_user(user_to_create_id, creator_id=None):
      "points": 0,
      "tier": "B",
      "most_recent_vote_time": 0,
-     "last_user_voted_on": user_to_create_id
+     "last_user_voted_on": user_to_create_id,
+     "is_horny_jailer": 0,
+     "has_horny_permit": 0,
+     "horny_permit_start_time": 0,
+     "horny_warnings": 0,
+     "horny_strikes": 0,
+     "in_horny_jail": 0,
+     "horny_jail_sentence_start_time": 0,
+     "last_horny_check": 0,
+     "last_permit_request": 0,
+     "user_name": name
     }
     collection.insert_one(post)
     set_update_needed()
@@ -107,11 +162,11 @@ def create_user(user_to_create_id, creator_id=None):
     return f"<@{user_to_create_id}> added to cousin rankings."
 
 # Upvotes a user
-def upvote_user(upvoted_id, upvoter_id=None):
+async def upvote_user(channel, upvoted_id, upvoter_id=None, name=""):
     if upvoted_id == None:
-        return f"Who do you want me to upvote?"
+        await channel.send(f"Who do you want me to upvote?")
     if upvoted_id == upvoter_id:
-        return f"Go fuck yourself <@{upvoter_id}>."
+        await channel.send(f"Go fuck yourself <@{upvoter_id}>.")
     else:
         cluster = MongoClient(CONNECTION_URL)
         db = cluster["cousins"]
@@ -119,9 +174,9 @@ def upvote_user(upvoted_id, upvoter_id=None):
 
         # check that the user is in the database
         if collection.count_documents({"_id": upvoted_id}) != 1:
-            user_created_message = create_user(user_to_create_id=upvoted_id)
-            upvote_message = upvote_user(upvoted_id = upvoted_id)
-            return f"<@{upvoted_id}> was created and upvoted."
+            user_created_message = create_user(user_to_create_id=upvoted_id, name=name)
+            upvote_message = upvote_user(channel, upvoted_id = upvoted_id)
+            await channel.send(f"<@{upvoted_id}> was created and upvoted.")
         
         if upvoter_id != None:
             # Get the time since last vote
@@ -135,20 +190,29 @@ def upvote_user(upvoted_id, upvoter_id=None):
             # see if they can vote
             voting_right = can_user_vote(last_user_voted_on, upvoted_id, time_since_last_vote)
             if voting_right != True:
-                return f"Call me a Republican, because I\'m taking away your right to vote <@{upvoter_id}>.\n[Voting on the same person too quickly]"
-        
-        # Add a point and update the database
-        points = collection.find_one({'_id':upvoted_id})['points']
-        points += 1
-        # add point to tier list date_checker
-        set_update_needed()
-        collection.update_one({"_id":upvoted_id}, {"$set": {"points": points}}) 
-        set_vote_time_and_user(upvoted_id, upvoter_id)
-        return f"<@{upvoted_id}> was upvoted."
+                await channel.send(f"Call me a Republican, because I\'m taking away your right to vote <@{upvoter_id}>.\n[Voting on the same person too quickly]")
+            else:
+                # Add a point and update the database
+                points = collection.find_one({'_id':upvoted_id})['points']
+                points += 1
+                # add point to tier list date_checker
+                set_update_needed()
+                collection.update_one({"_id":upvoted_id}, {"$set": {"points": points}}) 
+                set_vote_time_and_user(upvoted_id, upvoter_id)
+                await channel.send(f"<@{upvoted_id}> was upvoted.")
+        else:
+            # Add a point and update the database
+            points = collection.find_one({'_id':upvoted_id})['points']
+            points += 1
+            # add point to tier list date_checker
+            set_update_needed()
+            collection.update_one({"_id":upvoted_id}, {"$set": {"points": points}}) 
+            set_vote_time_and_user(upvoted_id, upvoter_id)
+            await channel.send(f"<@{upvoted_id}> was upvoted.")
 
 
 # Downvotes a User
-def downvote_user(downvoted_id, downvoter_id=None):
+def downvote_user(downvoted_id, downvoter_id=None, name=" "):
 
     if downvoted_id == None:
         return f"Who do you want me to downvote?"
@@ -161,9 +225,9 @@ def downvote_user(downvoted_id, downvoter_id=None):
 
         # Check if the account exists
         if collection.count_documents({"_id": downvoted_id}) != 1:
-            user_created_message = create_user(user_to_create_id=downvoted_id)
+            user_created_message = create_user(user_to_create_id=downvoted_id, name=name)
             downvote_message = downvote_user(downvoted_id = downvoted_id)
-            return f"<@{downvoted_id}> was created and downvoted."
+            return f"<@{downvoted_id}> was created and downvoted"
         
         # Check if they can vote
         if downvoter_id != None:
@@ -190,7 +254,7 @@ def downvote_user(downvoted_id, downvoter_id=None):
         set_update_needed()
         collection.update_one({"_id":downvoted_id}, {"$set": {"points": points}})
         set_vote_time_and_user(downvoted_id, downvoter_id)
-        return f"<@{downvoted_id}> was downvoted."
+        return f"<@{downvoted_id}> was downvoted"
 
 def calc_tier_list():
 
@@ -209,7 +273,6 @@ def calc_tier_list():
 
     average_points = total_points / total_members
     std_dev_points = stdev(stdev_collector)
-
     map_to_tier_list(total_points, average_points, std_dev_points)
     set_tier_up_to_date()
     # info_collection = db["update_info"]
@@ -223,9 +286,9 @@ def print_tier_list():
     collection_tier_list = db["tier_list"]
 
     for tier in collection_tier_list.find():
-        yield f"**{tier['_id']} Tier:**"
+        yield f"__{tier['_id']} Tier:__"
         for member in tier['members']:
-            yield f" \t<@{member}> "
+            yield f" \t**{member}** "
     pass
 
 def print_help_message():
@@ -276,12 +339,13 @@ def set_update_needed():
 
 def map_to_tier_list(total_points, average_points, std_dev_points):
     tier_mapping =    { 
-        'S' : round(average_points + (std_dev_points)), # ge
-        'A': round(average_points + (std_dev_points*0.5)), # ge
+        'S' : int(math.ceil(average_points + (std_dev_points))), # ge
+        'A': round(average_points + (std_dev_points*0.4)), # ge
         'B': round(average_points), # ge
-        'C': round(average_points - (std_dev_points*0.75)), # le 
-        'D': round(average_points - (std_dev_points*.95)), # le
-        'Piss Dungeon': round(average_points - (std_dev_points)) # le
+        'C': round(average_points - (std_dev_points*0.2)), # le 
+        'D': round(average_points - (std_dev_points*0.4)), # le
+        'Piss Dungeon': round(average_points - (std_dev_points)), # le
+        'State of Florida': round(average_points - (std_dev_points*1.4)) # le
     }
 
     cluster = MongoClient(CONNECTION_URL)
@@ -291,7 +355,7 @@ def map_to_tier_list(total_points, average_points, std_dev_points):
     # collection_update_info = db["update_info"]
     for tier in tier_mapping:
         collection_tier_list.update_one({"_id":tier}, {"$set":{"members": []}})
-
+    print(round(average_points - (std_dev_points)))
     for member in list(collection_members.find({})):
         tier = ""
         if member["points"] >= tier_mapping['S']:
@@ -304,21 +368,29 @@ def map_to_tier_list(total_points, average_points, std_dev_points):
             tier = "C"
         elif member["points"] >= tier_mapping['Piss Dungeon']:
             tier = "D"
-        else:
+        elif member["points"] >= tier_mapping['State of Florida']:
             tier = "Piss Dungeon"
-        collection_tier_list.update_one({"_id":tier}, {"$push":{"members": member["_id"]}})
+        else: 
+            tier = "State of Florida"
+        # collection_tier_list.update_one({"_id":tier}, {"$push":{"members": member["_id"]}})
+        collection_tier_list.update_one({"_id":tier}, {"$push":{"members": member['user_name']}})
         # collection_update_info.update_one({"_id": "update_info"}, {"$set": {"update_needed": 0}})
         collection_members.update_one({"_id":member["_id"]}, {"$set": {"tier": tier}})
 
 
+
 # Check who is the most horny
 def horny_check(members):
-    member_ids = [member.id for member in members]
-    return random.choice(member_ids)
+    random_member = random.choice(members)
+    member_name = random_member.name
+    member_id = random_member.id
+    return member_id, member_name
+    # member_names = [member.name for member in members]
+    # return random.choice(member_names)
 
 def horny_quote_generator(chosen_horndog):
-    choice = "<@" + str(chosen_horndog) + ">"
-    return "Mirror, mirror on the wall — " + choice + " is the horniest of them all.\nMinus one point for execessive horniness."
+    choice =  chosen_horndog
+    return "Mirror, mirror on the wall — **" + choice + "** is the horniest of them all."
 
 def dog_source():
     return f"{DOG_SOURCE}"
@@ -399,6 +471,27 @@ def check_mark_mode():
                 return int(row[0]) == 1
 
 
+def toggle_rjoin_mode():
+    reader = csv.reader(open(r_join_file))
+    lines = list(reader)
+    if int(lines[1][0]) == 1:
+        lines[1][0] = 0
+    else:
+        lines[1][0] = 1
+    writer = csv.writer(open(r_join_file, "w"))
+    writer.writerows(lines)
+
+def check_rjoin_mode():
+    with open (r_join_file, 'r') as csv_file:
+        line_reader = csv.reader(csv_file, delimiter=',')
+        line_count = 0
+        for row in csv_file:
+            if line_count == 0:
+                line_count += 1
+            else:
+                return int(row[0]) == 1
+
+
 def bee_facts():
     bee_facts = []
     lines = open(bee_facts_txt, encoding='utf-8').read().splitlines()
@@ -407,3 +500,282 @@ def bee_facts():
         bee_facts.append(line)
     return random.choice(bee_facts)
 
+async def create_all_horny_info(list_mems_id, client):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    my_collection = db["cousins_users"]
+    attribute = "last_permit_request"
+    for member in list_mems_id:
+        namealmost = await client.fetch_user(member)
+        real_name = namealmost.name
+        my_collection.update_one({"_id":member}, {"$set": {"user_name": real_name}})
+
+
+    # attributes = ["has_horny_permit", "horny_permit_start_time","horny_warnings","horny_strikes","in_horny_jail","horny_jail_sentence_start_time"]
+    # # my_collection.update_many({}, {"$set": {"has_horny_permit": 0}}, upsert=False, array_filters=None)
+    # for attribute in attributes:    
+    #     my_collection.update_many({}, {"$set": {attribute: 0}}, upsert=False, array_filters=None)
+    
+
+# horny warning config
+def has_horny_warning(horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    horny_warning = collection.find_one({'_id':horny_offender})['horny_warnings']
+    return horny_warning == 1
+
+def give_horny_warning(horny_offender, collection):
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # collection = db["cousins_users"]
+    collection.update_one({"_id":horny_offender}, {"$set": {"horny_warnings": 1}}) 
+
+def take_horny_warning(horny_offender, collection):
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # collection = db["cousins_users"]
+    collection.update_one({"_id":horny_offender}, {"$set": {"horny_warnings": 0}})
+
+# Horny strikes config
+def horny_strikes_count(horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    return collection.find_one({'_id':horny_offender})['horny_strikes']
+
+def give_horny_strike(horny_offender, collection):
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # collection = db["cousins_users"]
+    horny_strikes = collection.find_one({'_id':horny_offender})['horny_strikes']
+    collection.update_one({"_id":horny_offender}, {"$set": {"horny_strikes": horny_strikes + 1}})
+    asyncio.create_task(remove_horny_strike_async(horny_offender, 1, collection, horny_strike_cooldown))
+
+def take_horny_strikes(horny_offender, strikes_to_take, collection):
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # collection = db["cousins_users"]
+    horny_strikes = collection.find_one({'_id':horny_offender})['horny_strikes']
+    collection.update_one({"_id":horny_offender}, {"$set": {"horny_strikes": horny_strikes - strikes_to_take}})
+
+# horny permit config
+def has_valid_horny_permit(horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    horny_permit = collection.find_one({'_id':horny_offender})['has_horny_permit']
+    horny_permit_time = collection.find_one({'_id':horny_offender})['horny_permit_start_time']
+
+    current_time = current_time_in_seconds()
+    time_since_permit_given = get_time_since_last(current_time, horny_permit_time)
+
+    return horny_permit == 1 and time_since_permit_given <= allowed_horny_permit_time
+
+
+def get_time_since_last(current_time, last_time):
+    time = current_time - last_time
+    return int(time)
+
+
+def take_horny_permit(horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    collection.update_one({"_id":horny_offender}, {"$set": {"has_horny_permit": 0}})
+
+# Horny jail config
+def send_to_horny_jail(horny_offender, collection):
+    current_time = int(current_time_in_seconds())
+    # cluster = MongoClient(CONNECTION_URL)
+    # db = cluster["cousins"]
+    # collection = db["cousins_users"]
+    collection.update_one({"_id":horny_offender}, {"$set": {"in_horny_jail": 1}})
+    collection.update_one({"_id":horny_offender}, {"$set": {"horny_jail_sentence_start_time": current_time}})
+    take_horny_strikes(horny_offender, 2, collection)
+    take_horny_warning(horny_offender, collection)
+
+def is_in_jail(horny_offender):
+    current_time = int(current_time_in_seconds())
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    in_horny_jail = collection.find_one({'_id':horny_offender})['in_horny_jail']
+    horny_jail_time = collection.find_one({'_id':horny_offender})['horny_jail_sentence_start_time']
+
+    current_time = current_time_in_seconds()
+    time_in_jail = get_time_since_last(current_time, horny_jail_time)
+    return in_horny_jail == 1 and time_in_jail <= horny_jail_sentence_time
+
+async def free_from_jail_immediate(channel, horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    collection.update_one({"_id":horny_offender}, {"$set": {"in_horny_jail": 0}})
+    horny_jail_role_ = discord.utils.get(channel.guild.roles, name="In Horny Jail")
+    horndog_member = channel.guild.get_member(horny_offender)
+    await horndog_member.remove_roles(horny_jail_role_)
+    await channel.send(f"Oh god hide the children <@{horny_offender}> is out of horny jail.")
+
+
+# def give_horny_strike_or_warning_or_jail(horny_offender):
+#     cluster = MongoClient(CONNECTION_URL)
+#     db = cluster["cousins"]
+#     collection = db["cousins_users"]
+#     # if the offender is in horny jail
+#     if is_in_jail(horny_offender):
+#         return f"<@{horny_offender}> is already in horny jail."
+#     # otherwise, if the offender has a permit
+#     elif has_valid_horny_permit(horny_offender):
+#         return f"Not to worry. <@{horny_offender}> has a permit to be this horny."
+#     # if the offender has a horny warning
+#     elif has_horny_warning(horny_offender) == False:
+#         give_horny_warning(horny_offender, collection)
+#         return f"<@{horny_offender}> was given a warning for execessive horniness."
+#     elif horny_strikes_count(horny_offender) < 2:
+#         give_horny_strike(horny_offender, collection)
+#         return f"<@{horny_offender}> was given a horny strike."
+#     # if the horny offender already has 2 horny strikes, send them to jail upon the third
+#     elif horny_strikes_count(horny_offender) >= 2:
+#         send_to_horny_jail(horny_offender, collection)
+#         return f"Go to horny jail <@{horny_offender}>."
+
+async def give_horny_strike_or_warning_or_jail(channel, horny_offender, horny_offender_name):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    if horny_cooldown_check(horny_offender) is True:
+        await channel.send(f"**{horny_offender_name}** was given temporary horny amnesty. Quit asking and maybe <@{horny_offender}> will calm down.")
+    # if the offender is in horny jail
+    elif is_in_jail(horny_offender):
+        await channel.send(f"**{horny_offender_name}** is already in horny jail. Give **{horny_offender_name}** some alone-time for self-fellatio")
+        set_horny_cool_down(channel, horny_offender)
+    # otherwise, if the offender has a permit
+    elif has_valid_horny_permit(horny_offender):
+        await channel.send(f"Not to worry. **{horny_offender_name}** has a permit to be this horny.")
+        set_horny_cool_down(channel, horny_offender)
+    # if the offender has a horny warning
+    elif has_horny_warning(horny_offender) == False:
+        give_horny_warning(horny_offender, collection)
+        await channel.send(f"**{horny_offender_name}** was given a warning for execessive horniness.")
+        set_horny_cool_down(channel, horny_offender)
+    elif horny_strikes_count(horny_offender) < 2:
+        give_horny_strike(horny_offender, collection)
+        await channel.send(f"**{horny_offender_name}** was given a horny strike.")
+        set_horny_cool_down(channel, horny_offender)
+    # if the horny offender already has 2 horny strikes, send them to jail upon the third
+    elif horny_strikes_count(horny_offender) >= 2:
+        send_to_horny_jail(horny_offender, collection)
+        await channel.send(f"Go to horny jail **{horny_offender_name}**.")
+        horny_jail_role_ = discord.utils.get(channel.guild.roles, name="In Horny Jail")
+        horndog_member = channel.guild.get_member(horny_offender)
+        await horndog_member.add_roles(horny_jail_role_)
+        await channel.send(bonk_image)
+        asyncio.create_task(free_from_horny_jail(channel, horndog_member, horny_jail_role_, horny_jail_sentence_time))
+
+
+def is_horny():
+    return random.choice(list(horny_choices))
+
+def horny_jail_message(horndog):
+    horny_message = f"{random.choice(horny_jail_messages)} <@{horndog}>.\n" 
+    return horny_message
+
+async def print_jail(channel):
+    role = discord.utils.get(channel.guild.roles, name=horny_jail_role)
+    horny_jail_text = f"𝐇𝐎𝐑𝐍𝐘 𝐉𝐀𝐈𝐋:\n"
+    for member in channel.members:
+        if role in member.roles:
+            horny_jail_text += f"<@{member.id}>\n"
+    await channel.send(horny_jail_text)
+
+def horny_cooldown_check(horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    horny_check_time = collection.find_one({'_id':horny_offender})['last_horny_check']
+
+    current_time = current_time_in_seconds()
+    time_since_poked = get_time_since_last(current_time, horny_check_time)
+
+    return time_since_poked <= horny_check_cooldown
+
+def set_horny_cool_down(channel, horny_offender):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    current_time = current_time_in_seconds()
+    collection.update_one({"_id":horny_offender}, {"$set": {"last_horny_check": current_time}}) 
+
+
+def permit_request_time_check(asker):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    request_time = collection.find_one({'_id':asker})['last_permit_request']
+
+    current_time = current_time_in_seconds()
+    time_since_asked = get_time_since_last(current_time, request_time)
+
+    return time_since_asked >= permit_request_cooldown
+
+async def give_horny_permit(channel, asker):
+    cluster = MongoClient(CONNECTION_URL)
+    db = cluster["cousins"]
+    collection = db["cousins_users"]
+    if permit_request_time_check(asker) is True:
+        if random.randint(0, 100) < permit_request_chance:
+            current_time = int(current_time_in_seconds())
+            collection.update_one({"_id":asker}, {"$set": {"has_horny_permit": 1}})
+            collection.update_one({"_id":asker}, {"$set": {"horny_permit_start_time": current_time}})
+            await channel.send(f"You have my permission to be horny for just a little bit <@{asker}>.")
+            collection.update_one({"_id":asker}, {"$set": {"last_permit_request": current_time}})
+        else:
+            await channel.send(f"No permit for you, sinner <@{asker}>.")
+            await channel.send(f"{downvote_user(asker)} for unluckiness")
+            current_time = int(current_time_in_seconds())
+            collection.update_one({"_id":asker}, {"$set": {"last_permit_request": current_time}})
+    else:
+        await channel.send(f"No permit for you, sinner <@{asker}>.")
+        await channel.send(f"{downvote_user(asker)} for impatience")
+        current_time = int(current_time_in_seconds())
+        collection.update_one({"_id":asker}, {"$set": {"last_permit_request": current_time}})
+
+async def print_update_notes(channel):
+    lines = open(update_doc, encoding='utf-8').read().splitlines()
+    update_message = ""
+    for line in lines:
+        update_message += line + "\n"
+    await channel.send(update_message)
+
+# async def test_send(channel):
+#     await channel.send("hello")
+
+# horny jail list check
+# def in_horny_jail_list(horny_offender):
+#     # txt file method
+#     horny_jail_list = []
+#     lines = open(horny_jail_list, encoding='utf-8').read().splitlines()
+#     # ojs_day.append([line for line in lines])
+#     for line in lines:
+#         horny_jail_list.append(line)
+#     return str(horny_offender) in horny_jail_list
+
+# def place_in_horny_jail_list(horny_offender):
+#     horny_jail_file = open(horny_jail_list, "a")
+#     horny_jail_file.write(f"{horny_offender}")
+
+# def remove_from_horny_jail_list(horny_offender)
+
+
+    # if has_valid_horny_permit(horny_offender):
+    #     return f"Not to worry. <@{horny_offender}> has a permit to be this horny."
+    # else:
+    #     pass
+
+    #  "has_horny_permit": 0,
+    #  "horny_permit_start_time": 0,
+    #  "horny_warnings": 0,
+    #  "horny_strikes": 0,
+    #  "in_horny_jail": 0,
+    #  "horny_jail_sentence_start_time": 0
