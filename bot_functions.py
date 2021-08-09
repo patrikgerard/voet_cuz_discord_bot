@@ -15,7 +15,8 @@ import random
 import time
 import discord
 import math
-
+from PIL import Image, ImageFont, ImageDraw 
+import textwrap
 
 CONSUMER_KEY = secret_info.CONSUMER_KEY
 CONSUMER_SECRET_KEY = secret_info.CONSUMER_SECRET_KEY
@@ -748,34 +749,32 @@ async def print_update_notes(channel):
         update_message += line + "\n"
     await channel.send(update_message)
 
-# async def test_send(channel):
-#     await channel.send("hello")
+async def image_on_text(channel, text):
+    image = Image.open("images/computer_buff_guy_1.jpg")
+    title_font = ImageFont.truetype("Go-Bold.ttf", 30)
+    title_text = text
+    image_editable = ImageDraw.Draw(image)
+    image_len = 383
 
-# horny jail list check
-# def in_horny_jail_list(horny_offender):
-#     # txt file method
-#     horny_jail_list = []
-#     lines = open(horny_jail_list, encoding='utf-8').read().splitlines()
-#     # ojs_day.append([line for line in lines])
-#     for line in lines:
-#         horny_jail_list.append(line)
-#     return str(horny_offender) in horny_jail_list
+    line_width = 42
+    margin = 10
+    if len(text) >= 400:
+        offset = image_len*0.1
+        title_font = ImageFont.truetype("Go-Bold.ttf", 20)
+        line_width = 65
+    elif len(text) >= 300:
+        offset = image_len*0.33
+        title_font = ImageFont.truetype("Go-Bold.ttf", 25)
+        line_width = 52
+        if len(text) <= 350:
+            offset = image_len*0.4
+    elif len(text) >= 200:
+        offset = image_len*0.5
+    else:
+        offset = image_len*0.6
 
-# def place_in_horny_jail_list(horny_offender):
-#     horny_jail_file = open(horny_jail_list, "a")
-#     horny_jail_file.write(f"{horny_offender}")
-
-# def remove_from_horny_jail_list(horny_offender)
-
-
-    # if has_valid_horny_permit(horny_offender):
-    #     return f"Not to worry. <@{horny_offender}> has a permit to be this horny."
-    # else:
-    #     pass
-
-    #  "has_horny_permit": 0,
-    #  "horny_permit_start_time": 0,
-    #  "horny_warnings": 0,
-    #  "horny_strikes": 0,
-    #  "in_horny_jail": 0,
-    #  "horny_jail_sentence_start_time": 0
+    for line in textwrap.wrap(title_text, width=line_width):
+        image_editable.text((margin, offset), line, font=title_font, fill="#ffffff")
+        offset += title_font.getsize(line)[1]
+    image.save("images/result.jpg")
+    await channel.send(file=discord.File("images/result.jpg"))

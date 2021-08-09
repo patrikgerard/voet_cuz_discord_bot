@@ -6,7 +6,7 @@
 
 ᴍʏ ᴄᴏᴍᴍᴀɴᴅꜱ:
 **!mock [message]**: Mock a message
-**!sears**: See a tweet by <@610235781608374272>
+**!tweet**: See a tweet by <@610235781608374272>
 **!dogs**: Get a cool dog fact!
 **!create @user**: Add someone (using their slack handle) to the tier list
 **!upvote @user**: Add to someone's tier list points
@@ -24,5 +24,6 @@
 **!permit @user**: See if a user has a permit to be this horny
 **!permit please**: See if OJ will give you a horny permit lasting **30 minutes** [25% chance and 20 minute cooldown]
 **!jail**: See who is in horny jail
+**!sears**: See <@610235781608374272> type your message
 
 **@OJ how is @user's mom**: See how someone's mother is doing

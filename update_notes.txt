@@ -1,5 +1,6 @@
 I\'m back from evading the authorities!
 
 **Patch Notes**:
-- Updated tier weights to better reflect point distribution
-- Set the downvote/upvote cooldown (on the same user) time to 3 minutes
+- Command to retrieve sears tweet is now !tweet
+- !sears is new and special
+- Horny Jail bug fix

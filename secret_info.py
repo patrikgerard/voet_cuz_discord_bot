@@ -11,12 +11,12 @@ SEARS_DISCORD_USER_ID = "<@610235781608374272>"
 CONNECTION_URL = "mongodb+srv://patrikgerard:faPqJHzR8tARuS@cluster0.qv7sp.mongodb.net/test"
 
 # Discord Configuration
-TOKEN = "ODU0Mzk4NjY3NDAyMzc5Mjk1.YMjWxA.xxBU0Rwsg_3_m3itIharkFaAT0I"
+TOKEN = "ODU0Mzk4NjY3NDAyMzc5Mjk1.YMjWxA.bxdm70PRFkEWBAqphvyTwY6T1k4"
 CHANNEL_ID = 854399482350272546
 GUILD_ID = 854399482350272543
 
 # Cousin
-OJ_TOKEN = "ODYzMDg2NTY5NDI1MzM4Mzc4.YOhyAQ.0zVpuQ8dCKs8065Zy1EVXLUhXMA"
+OJ_TOKEN = "ODYzMDg2NTY5NDI1MzM4Mzc4.YOhyAQ.SL81CJJuKL0fBywp-XeDuOqcNQU"
 CUZ_CHANNEL_ID = 775114124513771572
 CUZ_GUILD_ID = 775114124513771570
 
@@ -72,3 +72,6 @@ join_chance = 40
 join_cooldown = 1200 # 20 minutes
 # Random join file
 r_join_file = "random_join.txt"
+
+# Image heights
+images = {"computer_buff_guy_1.jpg": 383, "computer_buff_guy_2.jpg": 480}

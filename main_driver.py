@@ -60,6 +60,8 @@ JOIN_COOLDOWN = secret_info.join_cooldown
 mp3_files = secret_info.mp3_files
 michael_sounds = secret_info.michael_sounds
 
+
+horny_jail_role = secret_info.horny_jail_role
 # async def free_from_horny_jail(horndog, role, time_to_release):
 #     await asyncio.sleep(time_to_release)
 #     await horndog.remove_roles(role)
@@ -81,6 +83,12 @@ def main():
         print(f"{client.user} has connected to Discord.")
         # ctx = await bot.get_context()
         asyncio.create_task(bot_functions.random_join(vchannel, JOIN_CHANCE, JOIN_COOLDOWN))
+
+        # Removes horny jail role upon entry
+        role = discord.utils.get(channel.guild.roles, name=horny_jail_role)
+        for mem in role.members:
+            await mem.remove_roles(role)
+
 
         #horny_jail_role_ = discord.utils.get(channel.guild.roles, name="Captain Horny")
         #carl = channel.guild.get_member(616262200608292895)
@@ -109,6 +117,7 @@ def main():
             if message.author.id == SEARS_ID:
                 mocked_message = bot_functions.mock(message.content.lower())
                 await message.channel.send(mocked_message)
+                await bot_functions.image_on_text(client.get_channel(CHANNEL_ID), message.content)
             # Check if the author is in horny jail
             if horny_jail_role in message.author.roles:
             # bot_functions.is_in_jail(message.author.id):
@@ -135,8 +144,26 @@ def main():
             except:
                 await message.channel.send(error_message_did_something_wrong)
         
+
+        if message.content.lower().startswith("!sears"):
+            try:
+                stripped_message = message.content[len("!sears"):].lstrip()
+                if len(stripped_message) == 0:
+                    mocker =  message.author.id
+                    mocked_message_buf_1 =  bot_functions.mock("My name is ")
+                    mocked_message_buf_2 =  bot_functions.mock(" and I don't know how to use \'!sears\'")
+                    mocker_format = "<@" + str(mocker) +">"
+                    mocked_message_final = mocked_message_buf_1 + mocker_format + mocked_message_buf_2   
+                    await message.channel.send(mocked_message_final)
+                else:
+                    await bot_functions.image_on_text(client.get_channel(CHANNEL_ID), stripped_message)
+            except Exception as e:
+                print(e)
+                await message.channel.send(error_message_did_something_wrong)
+
+
         # Sears tweet
-        elif message.content.lower().startswith("!sears"):
+        elif message.content.lower().startswith("!tweet"):
             try:
                 await message.channel.send(bot_functions.grab_sears_tweet())
             except:
@@ -777,14 +804,16 @@ def main():
                     await message.channel.send(military_spending_link)
             except:
                 await message.channel.send(error_message_did_something_wrong)
-
-
-
         elif message.content.lower().startswith("!"):
             try:
                 await message.channel.send(error_message_bad_command)
             except:
                 await message.channel.send(error_message_did_something_wrong)
+
+
+
+
+      
         
 
     # @bot.command(name='voice')
